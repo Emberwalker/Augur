@@ -44,8 +44,8 @@
     To send a message, use one of the dispatch methods. Message can be any object serializable by json.lua. For
     broadcast messages, specify a WoW SendAddonMessage type: PARTY, RAID, GUILD or BATTLEGROUND.
 
-        AugurDataProtocol.DispatchWhisper(ctx, target, message)
-        AugurDataProtocol.DispatchBroadcast(ctx, type, message)
+        ok, err = AugurDataProtocol.DispatchWhisper(ctx, target, message)
+        ok, err = AugurDataProtocol.DispatchBroadcast(ctx, type, message)
 
     Lastly, to print diagnostic output to the chat log, enable debug on the context (this may be very verbose!)
 
@@ -73,7 +73,9 @@ end
 
 local function ADPInternalListener(ctx, type, msg, src, distType)
     -- Unused (for now)
-    print("ADPMSG: " .. ctx.Prefix .. "/" .. type .. "/" .. src .. "/" .. distType .. ": " .. msg)
+    if ctx.Debug then
+        print("ADPMSG: " .. ctx.Prefix .. "/" .. type .. "/" .. src .. "/" .. distType .. ": " .. msg)
+    end
 end
 
 local function ADPInternalEventHandler(ctx, event, ...)
@@ -90,7 +92,8 @@ function AugurDataProtocol.GetNewContext(addonPrefix, setupListeners)
     local ctx = {
         WorkQueues = {},
         Prefix = addonPrefix,
-        Listeners = {}
+        Listeners = {},
+        Debug = false,
     }
 
     -- Attach internal listener with context
@@ -112,4 +115,20 @@ end
 
 function AugurDataProtocol.HandleRawMessage(ctx, prefix, msg, distType, sender)
 
+end
+
+function AugurDataProtocol.AttachListener(ctx, handlerFn)
+    table.insert(ctx.Listeners, handlerFn)
+end
+
+function AugurDataProtocol.DispatchWhisper(ctx, target, message)
+    -- TODO
+end
+
+function AugurDataProtocol.DispatchBroadcast(ctx, type, message)
+    -- TODO
+end
+
+function AugurDataProtocol.EnableDebug(ctx)
+    ctx.Debug = true
 end
