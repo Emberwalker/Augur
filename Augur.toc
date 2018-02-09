@@ -1,0 +1,13 @@
+## Interface: 70300
+## Title: Augur
+## Version: 7.3.0.0-dev
+## Author: Arkan Emberwalker
+## Notes: Stat tracking for dummies.
+## X-Category: Roleplay
+## X-License: ISC
+## SavedVariablesPerCharacter: augurCharacter
+## SavedVariables: augurGlobal
+
+json.lua
+adp.lua
+augur.lua
