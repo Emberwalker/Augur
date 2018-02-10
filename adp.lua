@@ -44,8 +44,8 @@
     To send a message, use one of the dispatch methods. Message can be any object serializable by json.lua. For
     broadcast messages, specify a WoW SendAddonMessage type: PARTY, RAID, GUILD or BATTLEGROUND.
 
-        err = AugurDataProtocol.DispatchWhisper(ctx, target, message)
-        err = AugurDataProtocol.DispatchBroadcast(ctx, type, message)
+        err = AugurDataProtocol.DispatchWhisper(ctx, target, msgType, message)
+        err = AugurDataProtocol.DispatchBroadcast(ctx, wowType, msgType, message)
 
     Lastly, to print diagnostic output to the chat log, enable debug on the context (this may be very verbose!)
     Enabling debug also disables safe calling (via pcall) of listeners, for easier troubleshooting by devs.
@@ -61,7 +61,7 @@ local providerName, addonTable = ...
 local ADP_VERSION = 1
 
 -- General constants.
-local PRELUDE_LENGTH = 6
+local PRELUDE_LENGTH = 5
 local MAX_USERTYPE = 250
 local MAX_BYTE = 255
 local MAX_TWOBYTE = 65535
@@ -146,7 +146,7 @@ end
 function AugurDataProtocol.HandleRawMessage(ctx, prefix, msg, distType, sender)
     if prefix ~= ctx.Prefix then return end
     -- Split message into components
-    local msgPrelude, msgData = msg:match("^(.....)|(.*)$")
+    local msgPrelude, msgData = msg:match("^(.....)(.*)$")
     if not msgPrelude or not msgData then return end
     local msgType, sessionId1, sessionId2, msgPartNum, msgPartEnd = msgPrelude:byte(1,5)
     -- Merge the session ID components into one int
@@ -164,12 +164,30 @@ function AugurDataProtocol.AttachListener(ctx, handlerFn)
     table.insert(ctx.Listeners, handlerFn)
 end
 
-function AugurDataProtocol.DispatchWhisper(ctx, target, message)
-    -- TODO
+local function ADPDispatchMessage(ctx, msgType, msg, wowType, target)
+    local msgEncoded, err = ADPSafeCall(addonTable._json.encode, msg)
+    if not msgEncoded and err then return err end
+    local sessionId = math.random(1, MAX_TWOBYTE)
+    local sessionId1 = bit.rshift(sessionId, 8)
+    local sessionId2 = bit.band(sessionId, MAX_BYTE)
+    if #msgEncoded > MSGBODY_MAXLEN then
+        -- Chunk and send multipart
+        return "multipart messages not implemented (yet)"
+    else
+        -- Send directly as 1-part
+        local msgString = string.char(msgType, sessionId1, sessionId2, 1, 1) .. msgEncoded
+        SendAddonMessage(ctx.Prefix, msgString, wowType, target)
+    end
+    return nil
 end
 
-function AugurDataProtocol.DispatchBroadcast(ctx, type, message)
-    -- TODO
+function AugurDataProtocol.DispatchWhisper(ctx, target, msgType, message)
+    if target == nil then return "target must be specified" end
+    return ADPDispatchMessage(ctx, msgType, message, "WHISPER", target)
+end
+
+function AugurDataProtocol.DispatchBroadcast(ctx, wowType, msgType, message)
+    return ADPDispatchMessage(ctx, msgType, message, wowType)
 end
 
 function AugurDataProtocol.EnableDebug(ctx)
