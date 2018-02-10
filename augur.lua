@@ -69,8 +69,3 @@ if err then
     print("Augur: ADP setup failed, Augur will not be able to communicate with other players!")
     print("Details: " .. err)
 end
-
--- TODO: Remove me
-AugurDataProtocol.EnableDebug(augurShared.ADPContext)
-AugurContext = augurShared.ADPContext
-AugurJson = augurShared._json
