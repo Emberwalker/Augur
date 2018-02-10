@@ -40,6 +40,10 @@ function SlashCmdList.AUGURMAIN(msg, editBox)
                 print("Error in evaluation: " .. err)
             end
         end
+    elseif command == "dev" then
+        local msg = string.char(1, 88, 45, 1, 1) .. "|{\"test\":\"test\"}"
+        print(msg)
+        AugurDataProtocol.HandleRawMessage(augurShared.ADPContext, "augur", msg, "PARTY", "Lanathes")
     end
 end
 
@@ -52,3 +56,5 @@ end
 
 -- TODO: Remove me
 AugurDataProtocol.EnableDebug(augurShared.ADPContext)
+AugurContext = augurShared.ADPContext
+AugurJson = augurShared._json

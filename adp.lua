@@ -48,8 +48,10 @@
         err = AugurDataProtocol.DispatchBroadcast(ctx, type, message)
 
     Lastly, to print diagnostic output to the chat log, enable debug on the context (this may be very verbose!)
+    Enabling debug also disables safe calling (via pcall) of listeners, for easier troubleshooting by devs.
 
         AugurDataProtocol.EnableDebug(ctx)
+        AugurDataProtocol.DisableDebug(ctx)
 ]]
 
 -- Pull providing addons name and data table from the providing addon.
@@ -85,8 +87,9 @@ end
 local function ADPInternalListener(ctx, type, msg, src, distType)
     -- Unused (for now)
     if ctx.Debug then
-        print("ADPMSG: " .. ctx.Prefix .. "/" .. type .. "/" .. src .. "/" .. distType .. ": " .. msg)
+        print("ADPMSG: " .. ctx.Prefix .. "/" .. type .. "/" .. src .. "/" .. distType)
     end
+    AugurDataProtocol._LastMessage = msg
 end
 
 local function ADPInternalEventHandler(ctx, event, ...)
@@ -96,13 +99,19 @@ local function ADPInternalEventHandler(ctx, event, ...)
 end
 
 local function ADPDispatchToListeners(ctx, typeId, message, source, distributionType)
-    local res, err = ADPSafeCall(addonTable._json.decode(message))
-    if err then
+    local res, err = ADPSafeCall(addonTable._json.decode, message)
+    if res == nil and err then
         if ctx.Debug then print("Augur: Error parsing ADP message: " .. err) end
         return
     end
     local v
-    for _, v in pairs(ctx.Listeners) do pcall(v, typeId, res, source, distributionType) end
+    for _, v in pairs(ctx.Listeners) do
+        if ctx.Debug then
+            v(typeId, res, source, distributionType)
+        else
+            pcall(v, typeId, res, source, distributionType)
+        end
+    end
 end
 
 function AugurDataProtocol.GetNewContext(addonPrefix, setupListeners)
@@ -137,24 +146,17 @@ end
 function AugurDataProtocol.HandleRawMessage(ctx, prefix, msg, distType, sender)
     if prefix ~= ctx.Prefix then return end
     -- Split message into components
-    local msgPrelude, msgData = msg:match("^(.....)|(%.*)$")
+    local msgPrelude, msgData = msg:match("^(.....)|(.*)$")
     if not msgPrelude or not msgData then return end
-    local msgType, sessionId1, sessionId2, msgPartNum, msgPartEnd = msgPrelude:bytes(1,5)
+    local msgType, sessionId1, sessionId2, msgPartNum, msgPartEnd = msgPrelude:byte(1,5)
     -- Merge the session ID components into one int
     local sessionId = bit.bor(bit.lshift(sessionId1, 8), sessionId2)
 
-    if msgPartNum == msgPartEnd then
-        -- We have (in theory) the whole message. Attempt to recombine and deserialize.
-        if msgPartNum == 1 then
-            -- One-part message; skip the work queues.
-            ADPDispatchToListeners(ctx, typeId, msgData, sender, distType)
-        else
-            -- Multi-part message; try and combine with work queue to complete
-            -- TODO!
-        end
+    if msgPartNum == msgPartEnd and msgPartEnd == 1 then
+        -- One-part message; skip the work queues.
+        ADPDispatchToListeners(ctx, msgType, msgData, sender, distType)
     else
-        -- Only part of the message. Add to a work queue.
-        -- TODO!
+        -- Multipart message. Check for all bits and try to recombine.
     end
 end
 
@@ -172,4 +174,8 @@ end
 
 function AugurDataProtocol.EnableDebug(ctx)
     ctx.Debug = true
+end
+
+function AugurDataProtocol.DisableDebug(ctx)
+    ctx.Debug = false
 end
