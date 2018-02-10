@@ -157,6 +157,27 @@ function AugurDataProtocol.HandleRawMessage(ctx, prefix, msg, distType, sender)
         ADPDispatchToListeners(ctx, msgType, msgData, sender, distType)
     else
         -- Multipart message. Check for all bits and try to recombine.
+        local queueId = sender .. "/" .. sessionId
+        if not ctx.WorkQueues[queueId] then
+            if ctx.Debug then print("ADP MP: Creating new work queue " .. queueId) end
+            ctx.WorkQueues[queueId] = {}
+        end
+        if ctx.Debug then print("ADP MP: Adding message to queue " .. queueId) end
+        ctx.WorkQueues[queueId][msgPartNum] = msgData
+
+        local hasAllParts = true
+        local i
+        for i = 1, msgPartEnd do
+            if not ctx.WorkQueues[queueId][i] then hasAllParts = false end
+        end
+
+        if hasAllParts then
+            -- Reconstitute the original message
+            local completedMsgData = table.concat(ctx.WorkQueues[queueId])
+            if ctx.Debug then print("ADP MP: Queue complete, reconstituting queue " .. queueId) end
+            ADPDispatchToListeners(ctx, msgType, completedMsgData, sender, distType)
+            ctx.WorkQueues[queueId] = nil
+        end
     end
 end
 
@@ -172,7 +193,16 @@ local function ADPDispatchMessage(ctx, msgType, msg, wowType, target)
     local sessionId2 = bit.band(sessionId, MAX_BYTE)
     if #msgEncoded > MSGBODY_MAXLEN then
         -- Chunk and send multipart
-        return "multipart messages not implemented (yet)"
+        local chunks = math.ceil(#msgEncoded / MSGBODY_MAXLEN)
+        if chunks > MAX_BYTE then return "message too large" end
+
+        local i
+        for i = 0, chunks - 1 do
+            local start = i * MSGBODY_MAXLEN + 1
+            local _end = (i + 1) * MSGBODY_MAXLEN
+            local chunkMsg = string.char(msgType, sessionId1, sessionId2, i + 1, chunks) .. msgEncoded:sub(start, _end)
+            SendAddonMessage(ctx.Prefix, chunkMsg, wowType, target)
+        end
     else
         -- Send directly as 1-part
         local msgString = string.char(msgType, sessionId1, sessionId2, 1, 1) .. msgEncoded

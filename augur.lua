@@ -41,9 +41,25 @@ function SlashCmdList.AUGURMAIN(msg, editBox)
             end
         end
     elseif command == "dev" then
-        local msg = string.char(1, 88, 45, 1, 1) .. "|{\"test\":\"test\"}"
+        local player = GetUnitName("player", true)
+        --[[local msg = string.char(1, 88, 45, 1, 2) .. "{\"test\":"
+        local msg2 = string.char(1, 88, 45, 2, 2) .. "\"test\"}"
         print(msg)
-        AugurDataProtocol.HandleRawMessage(augurShared.ADPContext, "augur", msg, "PARTY", "Lanathes")
+        print(msg2)
+        AugurDataProtocol.HandleRawMessage(augurShared.ADPContext, "augur", msg, "PARTY", player)
+        AugurDataProtocol.HandleRawMessage(augurShared.ADPContext, "augur", msg2, "PARTY", player)]]
+
+        local msg = { message = "This is a short test message that should skip the chunker." }
+        local err = AugurDataProtocol.DispatchWhisper(augurShared.ADPContext, player, 4, msg)
+        if err then print("ADP Error: " .. err) end
+
+        msg = {
+            message = "This is a very long message intended to go over the WoW message length limit. Ducks quacks DO" ..
+                " in fact echo. Water is wet. I'm running out of things to add now. The answer to Life, the Universe" ..
+                " and Everything, is fourty-two. Okay, we can stop this nonsense now."
+        }
+        local err = AugurDataProtocol.DispatchWhisper(augurShared.ADPContext, player, 5, msg)
+        if err then print("ADP Error: " .. err) end
     end
 end
 
