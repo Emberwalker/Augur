@@ -41,7 +41,7 @@ function SlashCmdList.AUGURMAIN(msg, editBox)
             end
         end
     elseif command == "dev" then
-        local player = GetUnitName("player", true)
+        local player = GetUnitName("target", true)
         --[[local msg = string.char(1, 88, 45, 1, 2) .. "{\"test\":"
         local msg2 = string.char(1, 88, 45, 2, 2) .. "\"test\"}"
         print(msg)

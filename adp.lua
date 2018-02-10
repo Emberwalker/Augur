@@ -188,13 +188,20 @@ end
 local function ADPDispatchMessage(ctx, msgType, msg, wowType, target)
     local msgEncoded, err = ADPSafeCall(addonTable._json.encode, msg)
     if not msgEncoded and err then return err end
-    local sessionId = math.random(1, MAX_TWOBYTE)
-    local sessionId1 = bit.rshift(sessionId, 8)
-    local sessionId2 = bit.band(sessionId, MAX_BYTE)
+
+    local sessionId, sessionId1, sessionId2
+    while true do
+        sessionId = math.random(1, MAX_TWOBYTE)
+        sessionId1 = bit.rshift(sessionId, 8)
+        sessionId2 = bit.band(sessionId, MAX_BYTE)
+        if sessionId1 ~= 0 and sessionId2 ~= 0 then break end
+    end
+
     if #msgEncoded > MSGBODY_MAXLEN then
         -- Chunk and send multipart
         local chunks = math.ceil(#msgEncoded / MSGBODY_MAXLEN)
         if chunks > MAX_BYTE then return "message too large" end
+        if ctx.Debug then print("ADP SEND MP: Message chunking into " .. chunks .. " messages.") end
 
         local i
         for i = 0, chunks - 1 do
