@@ -59,10 +59,12 @@ local providerName, addonTable = ...
 local ADP_VERSION = 1
 
 -- General constants.
+local PRELUDE_LENGTH = 6
 local MAX_USERTYPE = 250
 local MAX_BYTE = 255
 local MAX_TWOBYTE = 65535
 local MSG_MAXLEN = 250
+local MSGBODY_MAXLEN = MSG_MAXLEN - PRELUDE_LENGTH
 
 if AugurDataProtocol and AugurDataProtocol.VERSION >= ADP_VERSION then return end
 
@@ -99,7 +101,8 @@ local function ADPDispatchToListeners(ctx, typeId, message, source, distribution
         if ctx.Debug then print("Augur: Error parsing ADP message: " .. err) end
         return
     end
-    for local _, v in pairs(ctx.Listeners) do pcall(v, typeId, res, source, distributionType) end
+    local v
+    for _, v in pairs(ctx.Listeners) do pcall(v, typeId, res, source, distributionType) end
 end
 
 function AugurDataProtocol.GetNewContext(addonPrefix, setupListeners)
