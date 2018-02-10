@@ -23,7 +23,7 @@
     that the underlying json.lua library can, *except null bytes* as these confuse WoWs addon comms system. IDs 251-255
     are reserved for ADP usage (for future work).
 
-    All ADP functions take a 'context'table, which ADP uses to store partially-received messages and metadata. First,
+    All ADP functions take a 'context' table, which ADP uses to store partially-received messages and metadata. First,
     get a new context. The addon prefix must be 15 characters or less, else it'll report an error. By default, ADP will
     register your prefix and attach to it - passing false to setupListeners will disable this behaviour.
 
@@ -36,7 +36,7 @@
 
     Next, register any necessary listeners. This method can be called multiple times to attach additional listeners.
     The listener function can accept the following parameters: typeID, message, source, distributionType.
-    The source is the sending player name, type is the 2-250 ID, message is the deserialized JSON object and
+    The source is the sending player name, type is the 1-250 ID, message is the deserialized JSON object and
     distribution type is the type of CHAT_MSG_ADDON (PARTY, RAID, GUILD, BATTLEGROUND or WHISPER).
 
         AugurDataProtocol.AttachListener(ctx, handlerFn)
@@ -44,8 +44,8 @@
     To send a message, use one of the dispatch methods. Message can be any object serializable by json.lua. For
     broadcast messages, specify a WoW SendAddonMessage type: PARTY, RAID, GUILD or BATTLEGROUND.
 
-        ok, err = AugurDataProtocol.DispatchWhisper(ctx, target, message)
-        ok, err = AugurDataProtocol.DispatchBroadcast(ctx, type, message)
+        err = AugurDataProtocol.DispatchWhisper(ctx, target, message)
+        err = AugurDataProtocol.DispatchBroadcast(ctx, type, message)
 
     Lastly, to print diagnostic output to the chat log, enable debug on the context (this may be very verbose!)
 
@@ -57,6 +57,9 @@ local providerName, addonTable = ...
 
 -- Current version of ADP specified by this file.
 local ADP_VERSION = 1
+
+-- General constants.
+local MAX_USERTYPE = 250
 local MAX_BYTE = 255
 local MAX_TWOBYTE = 65535
 local MSG_MAXLEN = 250
@@ -71,6 +74,12 @@ if not AugurDataProtocol then
     }
 end
 
+local function ADPSafeCall(fn, ...)
+    local ok, res = pcall(fn, ...)
+    if ok then return res, nil end
+    return nil, res
+end
+
 local function ADPInternalListener(ctx, type, msg, src, distType)
     -- Unused (for now)
     if ctx.Debug then
@@ -82,6 +91,15 @@ local function ADPInternalEventHandler(ctx, event, ...)
     -- Check this is actually a CHAT_MSG_ADDON event.
     if event ~= "CHAT_MSG_ADDON" then return end
     AugurDataProtocol.HandleRawMessage(ctx, ...)
+end
+
+local function ADPDispatchToListeners(ctx, typeId, message, source, distributionType)
+    local res, err = ADPSafeCall(addonTable._json.decode(message))
+    if err then
+        if ctx.Debug then print("Augur: Error parsing ADP message: " .. err) end
+        return
+    end
+    for local _, v in pairs(ctx.Listeners) do pcall(v, typeId, res, source, distributionType) end
 end
 
 function AugurDataProtocol.GetNewContext(addonPrefix, setupListeners)
@@ -114,7 +132,27 @@ function AugurDataProtocol.GetNewContext(addonPrefix, setupListeners)
 end
 
 function AugurDataProtocol.HandleRawMessage(ctx, prefix, msg, distType, sender)
+    if prefix ~= ctx.Prefix then return end
+    -- Split message into components
+    local msgPrelude, msgData = msg:match("^(.....)|(%.*)$")
+    if not msgPrelude or not msgData then return end
+    local msgType, sessionId1, sessionId2, msgPartNum, msgPartEnd = msgPrelude:bytes(1,5)
+    -- Merge the session ID components into one int
+    local sessionId = bit.bor(bit.lshift(sessionId1, 8), sessionId2)
 
+    if msgPartNum == msgPartEnd then
+        -- We have (in theory) the whole message. Attempt to recombine and deserialize.
+        if msgPartNum == 1 then
+            -- One-part message; skip the work queues.
+            ADPDispatchToListeners(ctx, typeId, msgData, sender, distType)
+        else
+            -- Multi-part message; try and combine with work queue to complete
+            -- TODO!
+        end
+    else
+        -- Only part of the message. Add to a work queue.
+        -- TODO!
+    end
 end
 
 function AugurDataProtocol.AttachListener(ctx, handlerFn)
